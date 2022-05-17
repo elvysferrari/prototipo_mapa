@@ -38,7 +38,7 @@ class _RotaPageState extends State<RotaPage> {
   late Position _currentPosition;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  bool _carregandoRotas = false;
+  late BitmapDescriptor iconeDusnei;
 
   @override
   void initState() {
@@ -46,6 +46,12 @@ class _RotaPageState extends State<RotaPage> {
     _getPermissionLocation();
     carregamentoController.text = "19891";
     _carregamento = "19891";
+
+    BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(16, 16)), 'assets/icons/dusnei_icon.png')
+        .then((onValue) {
+      iconeDusnei = onValue;
+    });
   }
 
   _getPermissionLocation() async {
@@ -118,37 +124,51 @@ class _RotaPageState extends State<RotaPage> {
     double endLatitude = 0.0;
     double endLongitude = 0.0;
 
-    int index = 0;
-/*
-    CarregamentoModel guarapuava = CarregamentoModel(endereco: "R. Eng. Lentsch, 1184", cidade: "Guarapuava", bairro: "Conradinho", uf: "PR", nomeFantasia: "Hotel Iapó");
-    carregamentos.add(guarapuava);
-
-    CarregamentoModel patoBranco = CarregamentoModel(endereco: "Rua Manoel Ribas, 183", cidade: "Pato Branco", bairro: "Brasilia", uf: "PR", nomeFantasia: "Casa Elvys Ferrari");
-    carregamentos.add(patoBranco);
-*/
     List<PolylineWayPoint> wayPoints = [];
 
-    setState(() {
-      _carregandoRotas = true;
-    });
+    //startLatitude = _currentPosition.latitude;
+    //startLongitude = _currentPosition.longitude;
+
+    startLatitude = -23.3552691;
+    startLongitude = -51.8996794;
+
+    String enderecoCoordinatesString = '($startLatitude, $startLongitude)';
+
+    var endereco = 'Rua Pioneiro João Rufato, 257 Parque Industrial 200, Maringá - PR, 87035-540';
+
+    PolylineWayPoint wayPoint = PolylineWayPoint(location: "$endereco");
+    wayPoints.add(wayPoint);
+
+    Marker startMarker = Marker(
+      markerId: MarkerId(enderecoCoordinatesString),
+      position: LatLng(startLatitude, startLongitude),
+      infoWindow: InfoWindow(
+        title: 'DUSNEI DISTRIBUIDORA',
+        snippet: endereco,
+      ),
+      icon: iconeDusnei
+    );
+
+    // Adding the markers to the list
+    markers.add(startMarker);
 
     try {
       for (var carregamento in carregamentos) {
-        var endereco = "${carregamento.nomeFantasia}, ${carregamento.endereco} - ${carregamento.bairro}, ${carregamento.cidade} - ${carregamento.uf}";
+        var endereco = "${carregamento.endereco}, ${carregamento.cidade} - ${carregamento.uf}";
 
         List<Location> _enderecoPlacemark = await locationFromAddress(endereco);
 
-        double latitude = _enderecoPlacemark[0].latitude;
-        double longitude = _enderecoPlacemark[0].longitude;
+        carregamento.latitude = _enderecoPlacemark[0].latitude;
+        carregamento.longitude = _enderecoPlacemark[0].longitude;
 
-        String enderecoCoordinatesString = '($latitude, $longitude)';
+        String enderecoCoordinatesString = '(${carregamento.latitude}, ${carregamento.longitude})';
 
         PolylineWayPoint wayPoint = PolylineWayPoint(location: "$endereco");
         wayPoints.add(wayPoint);
 
         Marker startMarker = Marker(
           markerId: MarkerId(enderecoCoordinatesString),
-          position: LatLng(latitude, longitude),
+          position: LatLng(carregamento.latitude, carregamento.longitude),
           infoWindow: InfoWindow(
             title: '${carregamento.nomeFantasia}',
             snippet: endereco,
@@ -158,17 +178,24 @@ class _RotaPageState extends State<RotaPage> {
 
         // Adding the markers to the list
         markers.add(startMarker);
-
-        if(index == 0){
-          startLatitude = latitude;
-          startLongitude = longitude;
-        }else if(index == carregamentos.length - 1){
-          endLatitude = latitude;
-          endLongitude = longitude;
-        }
-        index++;
       }
 
+      //aqui temos que fazer uma função pra calcular a distancia dos carregamentos com o carregamento inicial
+      for (var carregamento in carregamentos) {
+        carregamento.distancia = _coordinateDistance(startLatitude, startLongitude, carregamento.latitude, carregamento.longitude);
+      }
+
+      CarregamentoModel maiorDistancia = carregamentos.reduce((a, b) {
+        if (a.distancia > b.distancia) {
+          return a;
+        } else {
+          return b;
+        }
+      });
+
+      endLatitude = maiorDistancia.latitude;
+      endLongitude = maiorDistancia.longitude;
+      
       // Calculating to check that the position relative
       // to the frame, and pan & zoom the camera accordingly.
       double miny = (startLatitude <= endLatitude)
@@ -219,12 +246,11 @@ class _RotaPageState extends State<RotaPage> {
 
       setState(() {
         _placeDistance = totalDistance.toStringAsFixed(2);
-        _carregandoRotas = false;
       });
 
       return true;
     } catch (e) {
-      Get.back();
+
       if (kDebugMode) {
         print(e);
       }
@@ -261,12 +287,12 @@ class _RotaPageState extends State<RotaPage> {
     );
 
     if (result.points.isNotEmpty) {
-      result.points.forEach((PointLatLng point) {
+      for (var point in result.points) {
         polylineCoordinates.add(LatLng(point.latitude, point.longitude));
-      });
+      }
     }
 
-    PolylineId id = PolylineId('poly');
+    PolylineId id = const PolylineId('poly');
     Polyline polyline = Polyline(
       polylineId: id,
       color: Colors.red,
@@ -375,7 +401,7 @@ class _RotaPageState extends State<RotaPage> {
                         ),
                       ),
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     ClipOval(
                       child: Material(
                         color: Colors.blue.shade100, // button color
@@ -541,26 +567,6 @@ class _RotaPageState extends State<RotaPage> {
                 ),
               ),
             ),
-            _carregandoRotas ?
-              Center(
-                child: Container(
-                  color: Colors.white,
-                  height: 100,
-                  width: width * 0.70,
-                  child: Center(
-                    child: Column(
-                      children: const [
-                        Text("Carregando sua rota, por favor aguarde..."),
-                        SizedBox(
-                          height: 20,
-                        ),
-                        CircularProgressIndicator(
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ) : Container()
           ],
         ),
       ),

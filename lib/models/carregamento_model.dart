@@ -9,6 +9,10 @@ class CarregamentoModel {
   String? cidade;
   String? uf;
 
+  late double distancia;
+  late double latitude;
+  late double longitude;
+
   CarregamentoModel(
       {this.codigoCliente,
         this.nomeFantasia,
